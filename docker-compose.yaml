@@ -1,0 +1,33 @@
+version: '3'
+
+services:
+  database:
+    image: mariadb
+    container_name: mariadb
+    ports:
+      - 3307:3306
+    environment:
+      - MYSQL_ROOT_PASSWORD=password
+      - MYSQL_DATABASE=majoo
+    volumes:
+      - ./db:/docker-entrypoint-initdb.d
+    networks:
+      - mynet
+
+  api:
+    env_file:
+      - .env
+    build: .
+    restart: unless-stopped
+    ports:
+      - 9100:9100
+    depends_on:
+      - database
+    networks:
+      - mynet
+
+  
+
+networks:
+  mynet:
+    driver: "bridge"

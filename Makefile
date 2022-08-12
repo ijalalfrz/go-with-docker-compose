@@ -21,5 +21,4 @@ run-dev:
 build:
 # Remove the command "cp -r secret /tmp/secret" if the service doesn't need JWT signer / parse
 	CGO_ENABLED=0 GOOS=linux go build -a -o app &&\
-		cp app /tmp/app &&\
-		  cp -r secret /tmp/secret
+		cp app /tmp/app
