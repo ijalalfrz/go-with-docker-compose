@@ -108,10 +108,19 @@ func (u usecase) FindOmzetPerMerchantByUserID(ctx context.Context, userId int64,
 }
 
 func (u usecase) FindOmzetPerOutletByUserID(ctx context.Context, userId int64, startDate string, endDate string, size int, page int) (resp response.Response) {
-
+	var err error
 	start, _ := time.Parse(NormalFormat, startDate)
 	end, _ := time.Parse(NormalFormat, endDate)
 	skip := (page - 1) * size
+
+	totalData, err := u.repository.CountOmzetPerOutletByUserID(ctx, userId, &start, &end)
+
+	if err != nil {
+		u.logger.Error(err)
+		return response.NewErrorResponse(err, http.StatusInternalServerError, nil, response.StatUnexpectedError, transactionUnexpectedErrMessage)
+
+	}
+	totalPage := math.Ceil(float64(totalData) / float64(size))
 
 	omzets, err := u.repository.FindOmzetPerOutletByUserID(ctx, userId, &start, &end, skip, size)
 
@@ -122,7 +131,11 @@ func (u usecase) FindOmzetPerOutletByUserID(ctx context.Context, userId int64, s
 		}
 		return response.NewErrorResponse(exception.ErrNotFound, http.StatusNotFound, nil, response.StatNotFound, transactionNotFoundErrMessage)
 	}
-	meta := map[string]interface{}{}
+	meta := map[string]interface{}{
+		"total_data": totalData,
+		"total_page": totalPage,
+		"page":       page,
+	}
 
 	return response.NewSuccessResponseWithMeta(omzets, response.StatOK, transactionSuccessMessage, meta)
 }

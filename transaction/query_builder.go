@@ -10,6 +10,31 @@ func NewTransactionQuery() *query {
 	return &query{}
 }
 
+func (q *query) BaseQueryGetCountGroupOmzetPerOutlet() *query {
+	q.query = `
+	WITH t as (
+		SELECT 
+			t.outlet_id, 
+			COUNT(t.outlet_id) as number_of_transaction ,
+			SUM(t.bill_total) as omzet,
+			DAY(t.created_at) as transaction_date,
+			MONTH(t.created_at) as transaction_month, 
+			YEAR(t.created_at) as transaction_year,
+			DATE(t.created_at) as full_date
+		FROM Transactions t
+		INNER JOIN Outlets o ON outlet_id = o.id
+		GROUP BY t.outlet_id, o.merchant_id,DAY(t.created_at), MONTH(t.created_at), YEAR(t.created_at)
+	)
+	SELECT 
+		COUNT(t.outlet_id) as total
+	FROM t
+	INNER JOIN Outlets o ON t.outlet_id = o.id
+	INNER JOIN Merchants m ON o.merchant_id = m.id
+	INNER JOIN Users u ON m.user_id = u.id
+	`
+	return q
+}
+
 func (q *query) BaseQueryGetGroupOmzetPerOutlet() *query {
 	q.query = `
 	WITH t as (
@@ -134,6 +159,16 @@ func (q *query) AddRangeFilter(column string) *query {
 
 func (q *query) AddOrderBy(column string, order string) *query {
 	q.query += fmt.Sprintf(" ORDER BY %s %s", column, order)
+	return q
+}
+
+func (q *query) AddLimit(limit int) *query {
+	q.query += fmt.Sprintf(" LIMIT %d", limit)
+	return q
+}
+
+func (q *query) AddOffset(offset int) *query {
+	q.query += fmt.Sprintf(" OFFSET %d", offset)
 	return q
 }
 

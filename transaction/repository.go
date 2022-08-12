@@ -16,6 +16,7 @@ type Repository interface {
 	FindManyByUserID(ctx context.Context, userId int64, startDate *time.Time, endDate *time.Time, limit int) (transactions []entity.Transaction, err error)
 	FindOmzetPerMerchantByUserID(ctx context.Context, userId int64, startDate *time.Time, endDate *time.Time) (omzets []model.GroupOmzetPerMerchant, err error)
 	FindOmzetPerOutletByUserID(ctx context.Context, userId int64, startDate *time.Time, endDate *time.Time, skip int, limit int) (omzets []model.GroupOmzetPerOutlet, err error)
+	CountOmzetPerOutletByUserID(ctx context.Context, userId int64, startDate *time.Time, endDate *time.Time) (totalData int64, err error)
 }
 
 type sqlCommand interface {
@@ -37,10 +38,27 @@ func NewTransactionRepository(logger *logrus.Logger, db *sql.DB) Repository {
 		db:     db,
 	}
 }
+func (r repository) CountOmzetPerOutletByUserID(ctx context.Context, userId int64, startDate *time.Time, endDate *time.Time) (totalData int64, err error) {
+	var cmd sqlCommand = r.db
+	q := NewTransactionQuery().
+		BaseQueryGetCountGroupOmzetPerOutlet().
+		AddWhereClause().
+		AddFilter("m.user_id").
+		AddAndClause().
+		AddRangeFilter("t.full_date").
+		Build()
+	totalData, err = r.queryCountOmzetPerOutlet(ctx, cmd, q, userId, startDate.Format("2006-01-02"), endDate.Format("2006-01-02"))
+	if err != nil {
+		err = wrapError(err)
+		return
+	}
+	return
+}
 
 func (r repository) FindManyByUserID(ctx context.Context, userId int64, startDate *time.Time, endDate *time.Time, limit int) (transactions []entity.Transaction, err error) {
 	var cmd sqlCommand = r.db
 	q := NewTransactionQuery().
+		BaseQueryGetAll().
 		AddWhereClause().
 		AddFilter("m.user_id").
 		Build()
@@ -69,6 +87,8 @@ func (r repository) FindOmzetPerOutletByUserID(ctx context.Context, userId int64
 		AddAndClause().
 		AddRangeFilter("t.full_date").
 		AddOrderBy("t.full_date", "asc").
+		AddLimit(limit).
+		AddOffset(skip).
 		Build()
 	bunchOfOmzet, err := r.queryOmzetPerOutlet(ctx, cmd, q, userId, startDate.Format("2006-01-02"), endDate.Format("2006-01-02"))
 	if err != nil {
@@ -182,6 +202,34 @@ func (r repository) queryOmzetPerOutlet(ctx context.Context, cmd sqlCommand, que
 		}
 
 		bunchOfOmzet = append(bunchOfOmzet, omzet)
+	}
+	return
+}
+
+func (r repository) queryCountOmzetPerOutlet(ctx context.Context, cmd sqlCommand, query string, args ...interface{}) (total int64, err error) {
+	var rows *sql.Rows
+
+	if rows, err = cmd.QueryContext(ctx, query, args...); err != nil {
+
+		r.logger.Error(query, err)
+		return
+	}
+
+	defer func() {
+		if err := rows.Close(); err != nil {
+			r.logger.Error(query, err)
+		}
+	}()
+
+	for rows.Next() {
+		err = rows.Scan(
+			&total,
+		)
+		if err != nil {
+			r.logger.Error(query, err)
+			return
+		}
+
 	}
 	return
 }
